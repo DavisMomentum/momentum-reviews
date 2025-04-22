@@ -1,112 +1,102 @@
 const express = require('express');
 const { MongoClient } = require('mongodb');
-const cors = require('cors');
-const multer = require('multer');
 const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+const multer = require('multer');
+const path = require('path');
+const cors = require('cors');
+
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 3000;
 
-app.use(express.json());
-app.use(cors());
-
-// MongoDB connection
-const uri = 'mongodb+srv://DataBase:SolarReviews2025@momentumreviews.crqqpoq.mongodb.net/momentum-reviews?retryWrites=true&w=majority';
+// MongoDB setup
+const uri = process.env.MONGODB_URI;
 const client = new MongoClient(uri);
-let db;
 
-async function connectToMongo() {
-    try {
-        await client.connect();
-        console.log('Connected to MongoDB');
-        db = client.db('momentum-reviews');
-    } catch (error) {
-        console.error('Error connecting to MongoDB:', error);
-    }
-}
-
-// AWS S3 configuration (v3)
-const { S3Client } = require("@aws-sdk/client-s3");
+// S3 setup using environment variables
 const s3Client = new S3Client({
-    region: process.env.AWS_REGION || "us-east-2",
+    region: process.env.AWS_REGION || 'us-east-2',
     credentials: {
         accessKeyId: process.env.AWS_ACCESS_KEY_ID,
         secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
     }
 });
-const bucketName = process.env.BUCKET_NAME || "momentum-solar-reviews-davis";
+const bucketName = process.env.BUCKET_NAME || 'momentum-solar-reviews-davis';
 
-// Multer configuration for file uploads
-const upload = multer({ storage: multer.memoryStorage() });
+// Multer setup for file uploads
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
 
-// Endpoint to save a review with file upload
-app.post('/reviews', upload.single('media'), async (req, res) => {
+// Middleware
+app.use(cors()); // Enable CORS for front-end requests
+app.use(express.json());
+app.use(express.static(path.join(__dirname, '.'))); // Serve static files (e.g., index.html)
+
+// Connect to MongoDB
+async function connectToMongo() {
     try {
-        console.log('Received review data:', req.body);
-        console.log('Received file:', req.file);
+        await client.connect();
+        console.log('Connected to MongoDB');
+    } catch (error) {
+        console.error('MongoDB connection error:', error);
+        process.exit(1);
+    }
+}
 
-        const { name, text, mediaType } = req.body;
-        let mediaUrl = '';
+// Route to handle review submission with video
+app.post('/reviews', upload.single('video'), async (req, res) => {
+    try {
+        const db = client.db('momentum-reviews');
+        const reviews = db.collection('reviews');
 
+        const { name, rating, comment } = req.body;
+        let videoUrl = null;
+
+        // If a video file is uploaded, upload it to S3
         if (req.file) {
-            const file = req.file;
-            const fileName = `${Date.now()}-${file.originalname}`;
-            console.log('Uploading file to S3:', fileName, 'Type:', file.mimetype);
-
+            const fileName = `${Date.now()}-${req.file.originalname}`;
             const command = new PutObjectCommand({
                 Bucket: bucketName,
                 Key: fileName,
-                Body: file.buffer,
-                ContentType: file.mimetype
+                Body: req.file.buffer,
+                ContentType: req.file.mimetype,
             });
 
-            try {
-                await s3Client.send(command);
-                mediaUrl = `https://${bucketName}.s3.us-east-2.amazonaws.com/${fileName}`;
-                console.log('Successfully uploaded to S3:', mediaUrl);
-            } catch (uploadError) {
-                console.error('Error uploading to S3:', uploadError);
-                throw new Error('Failed to upload media to S3');
-            }
-        } else {
-            console.log('No file received for upload');
+            await s3Client.send(command);
+            videoUrl = `https://${bucketName}.s3.${process.env.AWS_REGION || 'us-east-2'}.amazonaws.com/${fileName}`;
         }
 
+        // Save review to MongoDB
         const review = {
             name,
-            text,
-            media: mediaUrl,
-            mediaType: mediaType || ''
+            rating: parseInt(rating),
+            comment,
+            videoUrl,
+            createdAt: new Date()
         };
 
-        const collection = db.collection('reviews');
-        const result = await collection.insertOne(review);
-        res.status(201).json({ message: 'Review saved', reviewId: result.insertedId });
+        await reviews.insertOne(review);
+        res.status(201).json({ message: 'Review submitted successfully', review });
     } catch (error) {
-        console.error('Error saving review:', error);
-        res.status(500).json({ message: 'Error saving review' });
+        console.error('Error submitting review:', error);
+        res.status(500).json({ error: 'Failed to submit review' });
     }
 });
-// Endpoint to get all reviews
+
+// Route to get all reviews
 app.get('/reviews', async (req, res) => {
     try {
-        const collection = db.collection('reviews');
-        const reviews = await collection.find().toArray();
-        res.status(200).json(reviews);
+        const db = client.db('momentum-reviews');
+        const reviews = db.collection('reviews');
+        const reviewList = await reviews.find().toArray();
+        res.status(200).json(reviewList);
     } catch (error) {
         console.error('Error fetching reviews:', error);
-        res.status(500).json({ message: 'Error fetching reviews' });
+        res.status(500).json({ error: 'Failed to fetch reviews' });
     }
 });
 
-app.get('/', (req, res) => {
-    res.send('Momentum Solar Review Server is running!');
-});
-
-async function startServer() {
+// Start the server
+app.listen(port, async () => {
     await connectToMongo();
-    app.listen(port, () => {
-        console.log(`Server running at http://localhost:${port}`);
-    });
-}
-
-startServer();
+    console.log(`Server running on port ${port}`);
+});
