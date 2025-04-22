@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Momentum Solar Reviews - David San Martin</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+        }
+        .header {
+            background-color: #1a1a1a;
+            color: white;
+            text-align: center;
+            padding: 20px;
+        }
+        .header img {
+            max-width: 200px;
+        }
+        .header h1 {
+            margin: 10px 0;
+            font-size: 24px;
+            color: #00b7eb;
+        }
+        .header p {
+            margin: 5px 0;
+            font-size: 18px;
+            color: #00b7eb;
+        }
+        .container {
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+        .review-form, .reviews {
+            background: white;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        .review-form h2, .reviews h2 {
+            margin-top: 0;
+        }
+        .review-form label {
+            display: block;
+            margin: 10px 0 5px;
+        }
+        .review-form input[type="text"],
+        .review-form textarea {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        .review-form input[type="file"] {
+            margin-bottom: 10px;
+        }
+        .review-form button {
+            background-color: #00b7eb;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .review-form button:hover {
+            background-color: #009bcd;
+        }
+        .review {
+            border-bottom: 1px solid #ccc;
+            padding: 10px 0;
+        }
+        .review:last-child {
+            border-bottom: none;
+        }
+        .review img, .review video {
+            max-width: 100%;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <img src="https://momentum-solar-reviews-davis.s3.us-east-2.amazonaws.com/MomentumSolar_Logo_RGB.png" alt="Momentum Solar Logo">
+        <h1>David San Martin</h1>
+        <p>Solar Consultant</p>
+    </div>
+    <div class="container">
+        <div class="review-form">
+            <h2>Leave a Review</h2>
+            <form id="reviewForm" onsubmit="submitReview(); return false;">
+                <label for="name">Your Name:</label>
+                <input type="text" id="name" placeholder="Enter your name">
+                <label for="reviewText">Your Review:</label>
+                <textarea id="reviewText" placeholder="Write your review here"></textarea>
+                <label for="media">Upload Photo/Video:</label>
+                <input type="file" id="media" accept="image/*,video/*">
+                <button type="submit">Submit Review</button>
+            </form>
+        </div>
+        <div class="reviews">
+            <h2>Reviews</h2>
+            <div id="reviewList"></div>
+        </div>
+    </div>
+
+    <script>
+        async function submitReview() {
+            const name = document.getElementById('name').value;
+            const reviewText = document.getElementById('reviewText').value;
+            const mediaInput = document.getElementById('media');
+            const mediaFile = mediaInput.files[0];
+            console.log('Selected file:', mediaFile);
+
+            if (!name || !reviewText) {
+                alert('Please fill in your name and review.');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('name', name);
+            formData.append('text', reviewText);
+            if (mediaFile) {
+                formData.append('media', mediaFile);
+                formData.append('mediaType', mediaFile.type);
+                console.log('FormData includes file:', mediaFile.name, mediaFile.type);
+            } else {
+                console.log('No file selected');
+            }
+
+            try {
+                const response = await fetch('http://localhost:3000/reviews', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to save review');
+                }
+
+                alert('Review submitted successfully!');
+                displayReviews();
+                document.getElementById('name').value = '';
+                document.getElementById('reviewText').value = '';
+                mediaInput.value = '';
+            } catch (error) {
+                console.error('Error submitting review:', error);
+                alert('Error submitting review. Please try again.');
+            }
+        }
+
+        async function displayReviews() {
+            const reviewList = document.getElementById('reviewList');
+            reviewList.innerHTML = '';
+
+            try {
+                const response = await fetch('http://localhost:3000/reviews');
+                const reviews = await response.json();
+
+                reviews.forEach(review => {
+                    const reviewDiv = document.createElement('div');
+                    reviewDiv.className = 'review';
+                    reviewDiv.innerHTML = `<strong>${review.name}</strong><p>${review.text}</p>`;
+                    if (review.media) {
+                        console.log(`Rendering media for ${review.name}: URL=${review.media}, Type=${review.mediaType}`);
+                        if (review.mediaType.startsWith('image')) {
+                            reviewDiv.innerHTML += `<img src="${review.media}" alt="Review Image">`;
+                        } else if (review.mediaType.startsWith('video')) {
+                            reviewDiv.innerHTML += `<video controls src="${review.media}"></video>`;
+                        }
+                    }
+                    reviewList.appendChild(reviewDiv);
+                });
+            } catch (error) {
+                console.error('Error fetching reviews:', error);
+                reviewList.innerHTML = '<p>Error loading reviews. Please try again later.</p>';
+            }
+        }
+
+        // Load reviews when the page loads
+        window.onload = displayReviews;
+    </script>
+</body>
+</html>
