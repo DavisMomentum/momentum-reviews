@@ -104,4 +104,3 @@ app.listen(port, async () => {
     await connectToMongo();
     console.log(`Server running on port ${port}`);
 });
-});
