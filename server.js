@@ -3,6 +3,7 @@ const { MongoClient } = require('mongodb');
 const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 const multer = require('multer');
 const cors = require('cors');
+const crypto = require('crypto');
 
 // Initialize Express app
 const app = express();
@@ -71,17 +72,32 @@ app.post('/reviews', upload.single('video'), async (req, res) => {
         let videoUrl = null;
 
         if (req.file) {
-            const fileName = `${Date.now()}-${req.file.originalname}`;
-            const command = new PutObjectCommand({
-                Bucket: bucketName,
-                Key: fileName,
-                Body: req.file.buffer,
-                ContentType: req.file.mimetype,
-            });
+    const fileName = `${Date.now()}-${req.file.originalname}`;
+    const params = {
+        Bucket: bucketName,
+        Key: fileName,
+        Body: req.file.buffer,
+        ContentType: req.file.mimetype,
+    };
 
-            await s3Client.send(command);
-            videoUrl = `https://${bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`;
-        }
+    // Add logging for S3 upload params
+    console.log('S3 Upload Params:', {
+        Bucket: params.Bucket,
+        Key: params.Key,
+        ContentType: params.ContentType,
+        BodyLength: Buffer.from(params.Body).length, // Log the byte length of the Body
+        BodyHash: require('crypto').createHash('sha256').update(params.Body).digest('hex'), // Compute SHA256 hash
+    });
+
+    const command = new PutObjectCommand(params);
+    try {
+        await s3Client.send(command);
+        videoUrl = `https://${bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`;
+    } catch (s3Error) {
+        console.error('S3 Upload Error:', s3Error);
+        return res.status(500).json({ error: 'Failed to upload file to S3', details: s3Error.message });
+    }
+}
 
         const review = {
             name,
