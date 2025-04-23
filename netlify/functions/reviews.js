@@ -12,6 +12,13 @@ const s3Client = new S3Client({
     }
 });
 
+const bucketName = process.env.BUCKET_NAME;
+console.log('BUCKET_NAME from env:', process.env.BUCKET_NAME);
+console.log('bucketName:', bucketName);
+
+if (!bucketName) {
+    throw new Error('BUCKET_NAME environment variable is not set');
+}
 // Later in the POST handler
 videoUrl = `https://${bucketName}.s3.${process.env.MY_AWS_REGION}.amazonaws.com/${fileName}`;
 
@@ -58,7 +65,7 @@ exports.handler = async (event) => {
                 });
 
                 await s3Client.send(command);
-                videoUrl = `https://${bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`;
+                videoUrl = `https://${bucketName}.s3.${process.env.MY_AWS_REGION}.amazonaws.com/${fileName}`;
             }
 
             const review = {
