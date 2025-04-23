@@ -39,6 +39,7 @@ exports.handler = async (event) => {
 
         if (event.httpMethod === 'POST') {
             const contentType = event.headers['content-type'] || '';
+            console.log('Content-Type:', contentType);
             if (!contentType.includes('multipart/form-data')) {
                 return {
                     statusCode: 400,
@@ -47,7 +48,14 @@ exports.handler = async (event) => {
             }
 
             const boundary = contentType.split('boundary=')[1];
-            const parts = parseMultipartFormData(event.body, boundary);
+            console.log('Boundary:', boundary);
+
+            // Decode the body if it's base64-encoded
+            const body = event.isBase64Encoded ? Buffer.from(event.body, 'base64').toString('utf-8') : event.body;
+            console.log('Decoded body:', body);
+
+            const parts = parseMultipartFormData(body, boundary);
+            console.log('Parsed parts:', parts);
 
             const name = parts.name?.value;
             const rating = parseInt(parts.rating?.value);
@@ -105,16 +113,26 @@ function parseMultipartFormData(body, boundary) {
 
     for (const part of rawParts) {
         const [header, ...contentParts] = part.split('\r\n\r\n');
-        const content = contentParts.join('\r\n\r\n').trim();
-        const disposition = header.match(/Content-Disposition: form-data; name="([^"]+)"(?:; filename="([^"]+)")?/);
-        const contentType = header.match(/Content-Type: (.*)/);
+        if (!header || !contentParts.length) {
+            console.log('Skipping malformed part:', part);
+            continue;
+        }
 
-        const name = disposition[1];
-        const filename = disposition[2];
+        const content = contentParts.join('\r\n\r\n').trim();
+        const dispositionMatch = header.match(/Content-Disposition: form-data; name="([^"]+)"(?:; filename="([^"]+)")?/);
+        if (!dispositionMatch) {
+            console.log('No Content-Disposition match in header:', header);
+            continue;
+        }
+
+        const contentTypeMatch = header.match(/Content-Type: (.*)/);
+
+        const name = dispositionMatch[1];
+        const filename = dispositionMatch[2];
         if (filename) {
             parts[name] = {
                 filename,
-                contentType: contentType ? contentType[1] : 'application/octet-stream',
+                contentType: contentTypeMatch ? contentTypeMatch[1] : 'application/octet-stream',
                 content: Buffer.from(content, 'base64')
             };
         } else {
