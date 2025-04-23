@@ -1,5 +1,6 @@
 const { MongoClient } = require('mongodb');
 const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+const crypto = require('crypto'); // Add this import for SHA256 hashing
 
 const uri = process.env.MONGODB_URI;
 const client = new MongoClient(uri);
@@ -65,15 +66,30 @@ exports.handler = async (event) => {
             let videoUrl = null;
             if (file) {
                 const fileName = `${Date.now()}-${file.filename}`;
-                const command = new PutObjectCommand({
+                const params = {
                     Bucket: bucketName,
                     Key: fileName,
-                    Body: Buffer.from(file.content, 'base64'),
+                    Body: file.content, // Already a Buffer, no need for Buffer.from(file.content, 'base64')
                     ContentType: file.contentType
+                };
+
+                // Add logging for S3 upload params
+                console.log('S3 Upload Params:', {
+                    Bucket: params.Bucket,
+                    Key: params.Key,
+                    ContentType: params.ContentType,
+                    BodyLength: params.Body.length, // Log the byte length of the Body
+                    BodyHash: crypto.createHash('sha256').update(params.Body).digest('hex'), // Compute SHA256 hash
                 });
 
-                await s3Client.send(command);
-                videoUrl = `https://${bucketName}.s3.${process.env.MY_AWS_REGION}.amazonaws.com/${fileName}`;
+                const command = new PutObjectCommand(params);
+                try {
+                    await s3Client.send(command);
+                    videoUrl = `https://${bucketName}.s3.${process.env.MY_AWS_REGION}.amazonaws.com/${fileName}`;
+                } catch (s3Error) {
+                    console.error('S3 Upload Error:', s3Error);
+                    throw new Error(`Failed to upload file to S3: ${s3Error.message}`);
+                }
             }
 
             const review = {
@@ -133,7 +149,7 @@ function parseMultipartFormData(body, boundary) {
             parts[name] = {
                 filename,
                 contentType: contentTypeMatch ? contentTypeMatch[1] : 'application/octet-stream',
-                content: Buffer.from(content, 'base64')
+                content: Buffer.from(content, 'base64') // This is already handled correctly
             };
         } else {
             parts[name] = { value: content };
