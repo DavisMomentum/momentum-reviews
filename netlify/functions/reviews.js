@@ -5,13 +5,15 @@ const uri = process.env.MONGODB_URI;
 const client = new MongoClient(uri);
 
 const s3Client = new S3Client({
-    region: process.env.AWS_REGION,
+    region: process.env.MY_AWS_REGION,
     credentials: {
         accessKeyId: process.env.MY_AWS_ACCESS_KEY_ID,
-        secretAccessKey: process.env.MY_AWS_SECRET_ACCESS_KEY
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
     }
 });
-const bucketName = process.env.BUCKET_NAME;
+
+// Later in the POST handler
+videoUrl = `https://${bucketName}.s3.${process.env.MY_AWS_REGION}.amazonaws.com/${fileName}`;
 
 exports.handler = async (event) => {
     try {
