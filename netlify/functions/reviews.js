@@ -19,12 +19,12 @@ console.log('bucketName:', bucketName);
 if (!bucketName) {
     throw new Error('BUCKET_NAME environment variable is not set');
 }
-// Later in the POST handler
-videoUrl = `https://${bucketName}.s3.${process.env.MY_AWS_REGION}.amazonaws.com/${fileName}`;
 
 exports.handler = async (event) => {
     try {
+        console.log('Attempting to connect to MongoDB...');
         await client.connect();
+        console.log('MongoDB connected successfully');
         const db = client.db('momentum-reviews');
         const reviews = db.collection('reviews');
 
