@@ -14,9 +14,10 @@ const s3Client = new S3Client({
 });
 
 const bucketName = process.env.BUCKET_NAME;
-console.log('BUCKET_NAME from env:', process.env.BUCKET_NAME);
-console.log('bucketName:', bucketName);
-
+console.log('MY_AWS_REGION:', process.env.MY_AWS_REGION);
+console.log('MY_AWS_ACCESS_KEY_ID:', process.env.MY_AWS_ACCESS_KEY_ID);
+console.log('AWS_SECRET_ACCESS_KEY:', process.env.AWS_SECRET_ACCESS_KEY ? '[REDACTED]' : 'NOT SET');
+console.log('BUCKET_NAME:', process.env.BUCKET_NAME);
 if (!bucketName) {
     throw new Error('BUCKET_NAME environment variable is not set');
 }
