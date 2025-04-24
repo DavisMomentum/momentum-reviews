@@ -1,0 +1,10 @@
+[build]
+  command = "npm install"
+  publish = "."
+  functions = "netlify/functions"
+
+[[redirects]]
+  from = "/reviews"
+  to = "/.netlify/functions/reviews"
+  status = 200
+  force = true
