@@ -1,5 +1,5 @@
 {
-  "name": "momentum-reviews",
+  "name": "momentum-reviews-functions",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
@@ -11,9 +11,7 @@
   "description": "",
   "dependencies": {
     "@aws-sdk/client-s3": "^3.787.0",
-    "cors": "^2.8.5",
-    "express": "^5.1.0",
-    "mongodb": "^6.16.0",
-    "multer": "^1.4.5-lts.2"
+    "mongoose": "^8.3.2",
+    "@netlify/functions": "^2.7.0"
   }
 }
