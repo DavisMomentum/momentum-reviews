@@ -1,20 +1,17 @@
-const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 const mongoose = require('mongoose');
+const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+const { handler: netlifyHandler, builder } = require('@netlify/functions');
 const { parseMultipartFormData } = require('@netlify/functions');
 
 const s3Client = new S3Client({
-    region: process.env.MY_AWS_REGION,
+    region: process.env.MY_AWS_REGION || 'us-east-2',
     credentials: {
         accessKeyId: process.env.MY_AWS_ACCESS_KEY_ID,
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+        secretAccessKey: process.env.MY_AWS_SECRET_ACCESS_KEY
     }
 });
 
-const bucketName = process.env.BUCKET_NAME;
-console.log('MY_AWS_REGION:', process.env.MY_AWS_REGION);
-console.log('MY_AWS_ACCESS_KEY_ID:', process.env.MY_AWS_ACCESS_KEY_ID);
-console.log('AWS_SECRET_ACCESS_KEY:', process.env.AWS_SECRET_ACCESS_KEY ? '[REDACTED]' : 'NOT SET');
-console.log('BUCKET_NAME:', process.env.BUCKET_NAME);
+const bucketName = process.env.BUCKET_NAME || 'momentum-solar-reviews-davis';
 if (!bucketName) {
     throw new Error('BUCKET_NAME environment variable is not set');
 }
@@ -24,7 +21,7 @@ const reviewSchema = new mongoose.Schema({
     rating: Number,
     comment: String,
     videoUrl: String,
-    timestamp: { type: Date, default: Date.now }
+    createdAt: { type: Date, default: Date.now }
 });
 
 const Review = mongoose.models.Review || mongoose.model('Review', reviewSchema);
@@ -32,7 +29,7 @@ const Review = mongoose.models.Review || mongoose.model('Review', reviewSchema);
 const connectToMongoDB = async () => {
     if (mongoose.connection.readyState === 0) {
         console.log('Attempting to connect to MongoDB...');
-        await mongoose.connect(process.env.MONGO_URI, {
+        await mongoose.connect(process.env.MONGODB_URI, {
             useNewUrlParser: true,
             useUnifiedTopology: true
         });
@@ -40,19 +37,17 @@ const connectToMongoDB = async () => {
     }
 };
 
-exports.handler = async (event) => {
+const handler = async (event) => {
     try {
-        // Handle GET request to fetch reviews
         if (event.httpMethod === 'GET') {
             await connectToMongoDB();
-            const reviews = await Review.find().sort({ timestamp: -1 });
+            const reviews = await Review.find().sort({ createdAt: -1 });
             return {
                 statusCode: 200,
                 body: JSON.stringify(reviews)
             };
         }
 
-        // Handle POST request to submit a review
         if (event.httpMethod !== 'POST') {
             return {
                 statusCode: 405,
@@ -64,12 +59,10 @@ exports.handler = async (event) => {
         const boundary = event.headers['content-type'].split('boundary=')[1];
         console.log('Boundary:', boundary);
 
-        // Parse the multipart form data
         console.log('Parsing multipart form data...');
         const parsedData = await parseMultipartFormData(event);
         console.log('Parsed data:', parsedData);
 
-        // Extract fields and files
         const fields = parsedData.fields || {};
         const files = parsedData.files || [];
 
@@ -105,7 +98,7 @@ exports.handler = async (event) => {
             try {
                 const command = new PutObjectCommand(uploadParams);
                 await s3Client.send(command);
-                videoUrl = `https://${bucketName}.s3.${process.env.MY_AWS_REGION}.amazonaws.com/${key}`;
+                videoUrl = `https://${bucketName}.s3.${process.env.MY_AWS_REGION || 'us-east-2'}.amazonaws.com/${key}`;
                 console.log('Video uploaded successfully:', videoUrl);
             } catch (s3Error) {
                 console.error('S3 upload error:', s3Error.message);
@@ -136,3 +129,5 @@ exports.handler = async (event) => {
         };
     }
 };
+
+exports.handler = builder(handler);
